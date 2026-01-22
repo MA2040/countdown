@@ -69,22 +69,15 @@
       transform: translate(-50%, -50%);
       color:#fff;
       font-weight:600;
-      font-size: 80px;           /* ✅ requested */
+      font-size: 40px;         /* <= 60px step */
       letter-spacing: 0.06em;
-      line-height: 1;
+      line-height: 1;          /* tighter for vertical centering */
       user-select:none;
       pointer-events:none;
       z-index:3;
 
-      /* ✅ keep width stable as digits change */
-      font-variant-numeric: tabular-nums;
-      font-feature-settings: "tnum" 1, "lnum" 1;
-
-      /* tiny optical adjustment for Poppins baseline */
-      translate: 0 2px;
-
-      /* avoid any layout jitter */
-      white-space: nowrap;
+      /* tiny optical adjustment for Poppins baseline (optional but helps) */
+      translate: 0 1px;
     }
   </style>
 </head>
@@ -157,13 +150,11 @@
     function tick(){
       const diff = target - new Date();
       if(diff <= 0){ countdownEl.textContent = "00:00:00:00"; return; }
-
       const s = Math.floor(diff/1000);
       const d = Math.floor(s/86400);
       const h = Math.floor((s%86400)/3600);
       const m = Math.floor((s%3600)/60);
       const sec = s%60;
-
       const pad=n=>String(n).padStart(2,"0");
       countdownEl.textContent = `${pad(d)}:${pad(h)}:${pad(m)}:${pad(sec)}`;
     }
