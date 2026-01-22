@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Countdown</title>
+
+  <!-- Poppins -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      /* Your 5 colors */
+      --c1:#d70000;
+      --c2:#ff692e;
+      --c3:#bc763d;
+      --c4:#22523e;
+      --c5:#0c1a1c;
+    }
+
+    html,body{height:100%;margin:0;}
+    body{
+      overflow:hidden;
+      font-family:'Poppins', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: var(--c5);
+    }
+
+    canvas#bg{
+      position:fixed;
+      inset:0;
+      width:100%;
+      height:100%;
+      display:block;
+      z-index:0;
+    }
+
+    /* Grain overlay */
+    #grain{
+      position:fixed;
+      inset:0;
+      pointer-events:none;
+      z-index:1;
+      opacity:.20;
+      mix-blend-mode:overlay;
+      background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.15'/%3E%3C/svg%3E");
+      background-size:180px 180px;
+    }
+
+    /* Plus grid: plus 6x6px, spacing 60px */
+    #plusGrid{
+      position:fixed;
+      inset:0;
+      pointer-events:none;
+      z-index:2;
+      opacity:.22;
+      mix-blend-mode:screen;
+      /* background-image set in JS */
+      background-size: 60px 60px;
+    }
+
+    /* Countdown snapped to grid center via JS */
+    #countdown{
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      color:#fff;
+      font-weight:600;
+      font-size: 80px;           /* ✅ requested */
+      letter-spacing: 0.06em;
+      line-height: 1;
+      user-select:none;
+      pointer-events:none;
+      z-index:3;
+
+      /* ✅ keep width stable as digits change */
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum" 1, "lnum" 1;
+
+      /* tiny optical adjustment for Poppins baseline */
+      translate: 0 2px;
+
+      /* avoid any layout jitter */
+      white-space: nowrap;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="bg" aria-hidden="true"></canvas>
+  <div id="grain" aria-hidden="true"></div>
+  <div id="plusGrid" aria-hidden="true"></div>
+
+  <div id="countdown">—</div>
+
+  <script>
+    // --------------------------------
+    // A) Plus grid (6x6 px plus, 60px spacing)
+    // --------------------------------
+    const GRID_STEP = 60;
+    (function setupPlusGrid(){
+      const step = GRID_STEP;
+      const size = 6;            // 6x6 bounding box
+      const half = size / 2;     // 3
+      const tile = step;
+      const cx = tile / 2;
+      const cy = tile / 2;
+
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="${tile}" height="${tile}" viewBox="0 0 ${tile} ${tile}">
+          <path d="M ${cx} ${cy-half} V ${cy+half} M ${cx-half} ${cy} H ${cx+half}"
+            stroke="#ffffff" stroke-width="1" stroke-linecap="square" />
+        </svg>
+      `.trim();
+
+      const url = "data:image/svg+xml," + encodeURIComponent(svg);
+      const grid = document.getElementById("plusGrid");
+      grid.style.backgroundImage = `url("${url}")`;
+      grid.style.backgroundSize = `${step}px ${step}px`;
+    })();
+
+    // --------------------------------
+    // B) Snap countdown to the CENTER of a 60x60 cell
+    // (between plus lines) — stable on fullscreen/projector
+    // --------------------------------
+    const countdownEl = document.getElementById("countdown");
+    const GRID_CENTER_OFFSET = GRID_STEP / 2; // 30px
+
+    function snapCountdownToGrid(){
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+
+      // nearest grid-cell center to viewport center
+      const targetX = w / 2;
+      const targetY = h / 2;
+
+      const snappedX = Math.round((targetX - GRID_CENTER_OFFSET) / GRID_STEP) * GRID_STEP + GRID_CENTER_OFFSET;
+      const snappedY = Math.round((targetY - GRID_CENTER_OFFSET) / GRID_STEP) * GRID_STEP + GRID_CENTER_OFFSET;
+
+      countdownEl.style.left = `${snappedX}px`;
+      countdownEl.style.top  = `${snappedY}px`;
+    }
+
+    // Run once + on resize/fullscreen changes
+    snapCountdownToGrid();
+    window.addEventListener("resize", snapCountdownToGrid);
+    document.addEventListener("fullscreenchange", snapCountdownToGrid);
+
+    // --------------------------------
+    // C) Countdown (Rome time)
+    // --------------------------------
+    const target = new Date("2040-02-17T12:00:00+01:00");
+
+    function tick(){
+      const diff = target - new Date();
+      if(diff <= 0){ countdownEl.textContent = "00:00:00:00"; return; }
+
+      const s = Math.floor(diff/1000);
+      const d = Math.floor(s/86400);
+      const h = Math.floor((s%86400)/3600);
+      const m = Math.floor((s%3600)/60);
+      const sec = s%60;
+
+      const pad=n=>String(n).padStart(2,"0");
+      countdownEl.textContent = `${pad(d)}:${pad(h)}:${pad(m)}:${pad(sec)}`;
+    }
+    tick(); setInterval(tick, 250);
+
+    // --------------------------------
+    // D) Background: random non-linear field + natural “pull”
+    // --------------------------------
+    const canvas = document.getElementById("bg");
+    const ctx = canvas.getContext("2d", { alpha:false });
+
+    // Render at lower resolution for speed; upscale smoothly
+    let rw=0, rh=0, dpr=1;
+    const scale = 2; // 2 => half res
+
+    // Offscreen base (static until regenerated)
+    const baseC = document.createElement("canvas");
+    const bctx = baseC.getContext("2d", { willReadFrequently:true });
+
+    // Offscreen output (dynamic)
+    const outC = document.createElement("canvas");
+    const octx = outC.getContext("2d", { willReadFrequently:true });
+
+    // Displacement fields
+    let dxField, dyField;
+
+    // 5-color ramp (RGB)
+    const palette = ["#d70000","#ff692e","#bc763d","#22523e","#0c1a1c"].map(hexToRgb);
+
+    // Pointer state (smoothed / delayed)
+    const pointer = { x:0, y:0, tx:0, ty:0, active:false };
+    window.addEventListener("mousemove", e => { pointer.tx=e.clientX; pointer.ty=e.clientY; pointer.active=true; }, {passive:true});
+    window.addEventListener("mouseleave", () => { pointer.active=false; }, {passive:true});
+    window.addEventListener("touchmove", e => {
+      if(!e.touches[0]) return;
+      pointer.tx=e.touches[0].clientX; pointer.ty=e.touches[0].clientY; pointer.active=true;
+    }, {passive:true});
+    window.addEventListener("touchend", () => { pointer.active=false; }, {passive:true});
+
+    let seed = Math.random()*9999;
+
+    function resizeBg(){
+      dpr = Math.min(2, window.devicePixelRatio || 1);
+      canvas.width  = Math.floor(window.innerWidth  * dpr);
+      canvas.height = Math.floor(window.innerHeight * dpr);
+      canvas.style.width = "100%";
+      canvas.style.height = "100%";
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+
+      rw = Math.max(260, Math.floor(window.innerWidth  / scale));
+      rh = Math.max(180, Math.floor(window.innerHeight / scale));
+
+      baseC.width = rw; baseC.height = rh;
+      outC.width  = rw; outC.height  = rh;
+
+      dxField = new Float32Array(rw*rh);
+      dyField = new Float32Array(rw*rh);
+
+      // initialize pointer near center
+      pointer.x = pointer.tx = window.innerWidth * 0.5;
+      pointer.y = pointer.ty = window.innerHeight * 0.45;
+
+      generateRandomBaseField();
+    }
+    window.addEventListener("resize", () => { resizeBg(); snapCountdownToGrid(); });
+    resizeBg();
+
+    function generateRandomBaseField(){
+      seed = Math.random()*9999;
+
+      const img = bctx.createImageData(rw, rh);
+      const data = img.data;
+
+      for(let y=0; y<rh; y++){
+        for(let x=0; x<rw; x++){
+          const u = x/(rw-1);
+          const v = y/(rh-1);
+
+          // Fractal value noise field (random, not linear/radial)
+          let n = 0, amp = 1, freq = 1;
+          for(let o=0;o<5;o++){
+            n += amp * valueNoise(u*freq, v*freq, seed + o*17.7);
+            amp *= 0.55;
+            freq *= 2.05;
+          }
+          let t = n / (1 + 0.55 + 0.55*0.55 + 0.55*0.55*0.55 + Math.pow(0.55,4));
+          t = clamp01(t);
+
+          // extra warp for richness
+          const w = (valueNoise(u*3.2, v*3.2, seed+123.4) - 0.5) * 0.12;
+          t = clamp01(t + w);
+
+          const c = sampleRamp(palette, t);
+
+          const i = (y*rw + x) * 4;
+          data[i+0] = c.r;
+          data[i+1] = c.g;
+          data[i+2] = c.b;
+          data[i+3] = 255;
+        }
+      }
+      bctx.putImageData(img, 0, 0);
+    }
+
+    let lastT = performance.now();
+    function frame(t){
+      const dt = Math.min(0.05, (t - lastT) / 1000);
+      lastT = t;
+
+      // pointer inertia (takes time)
+      const ease = pointer.active ? 0.10 : 0.05;
+      pointer.x += (pointer.tx - pointer.x) * ease;
+      pointer.y += (pointer.ty - pointer.y) * ease;
+
+      updateDisplacement(t, dt);
+      renderDistorted(t);
+
+      ctx.imageSmoothingEnabled = true;
+      ctx.clearRect(0,0,window.innerWidth,window.innerHeight);
+      ctx.drawImage(outC, 0,0, rw,rh, 0,0, window.innerWidth, window.innerHeight);
+
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+
+    function updateDisplacement(timeMs, dt){
+      const mx = (pointer.x / window.innerWidth) * rw;
+      const my = (pointer.y / window.innerHeight) * rh;
+
+      // Bigger radius + invisible boundary
+      const R = Math.min(rw, rh) * 0.38;
+      const invR = 1 / Math.max(1e-6, R);
+
+      // Subtle strength
+      const baseStrength = pointer.active ? 22 : 8;
+
+      // Blur/diffuse + decay (makes it softer and not instant)
+      const decay = 0.92;
+      const diffuse = 0.22;
+
+      // Diffuse (blurry) the field
+      for(let y=1; y<rh-1; y++){
+        for(let x=1; x<rw-1; x++){
+          const i = y*rw + x;
+          const dx0 = dxField[i], dy0 = dyField[i];
+
+          const dxN = (dxField[i-1] + dxField[i+1] + dxField[i-rw] + dxField[i+rw]) * 0.25;
+          const dyN = (dyField[i-1] + dyField[i+1] + dyField[i-rw] + dyField[i+rw]) * 0.25;
+
+          dxField[i] = (dx0 * decay) + (dxN - dx0) * diffuse;
+          dyField[i] = (dy0 * decay) + (dyN - dy0) * diffuse;
+        }
+      }
+
+      // Add pull (irregular falloff so no perfect circle)
+      for(let y=0; y<rh; y++){
+        for(let x=0; x<rw; x++){
+          const i = y*rw + x;
+
+          const px = x - mx;
+          const py = y - my;
+          const rr = Math.sqrt(px*px + py*py) * invR;
+
+          // gaussian falloff -> no edge
+          let fall = Math.exp(-rr*rr * 2.6);
+
+          // irregularize boundary (low freq noise)
+          const u = x / rw, v = y / rh;
+          const n = valueNoise(u*2.0, v*2.0, seed + 555.5 + timeMs*0.00008);
+          fall *= (0.82 + 0.36*n);
+
+          const f = baseStrength * fall * dt;
+
+          // Inverse sampling effect (pull inward)
+          dxField[i] += px * f * 0.028;
+          dyField[i] += py * f * 0.028;
+        }
+      }
+    }
+
+    function renderDistorted(timeMs){
+      const baseImg = bctx.getImageData(0,0,rw,rh);
+      const src = baseImg.data;
+
+      const outImg = octx.createImageData(rw,rh);
+      const dst = outImg.data;
+
+      for(let y=0; y<rh; y++){
+        for(let x=0; x<rw; x++){
+          const i = y*rw + x;
+
+          let sx = x + dxField[i];
+          let sy = y + dyField[i];
+
+          // clamp
+          if(sx < 0) sx = 0;
+          if(sy < 0) sy = 0;
+          if(sx > rw-1) sx = rw-1;
+          if(sy > rh-1) sy = rh-1;
+
+          const ix = (Math.floor(sy)*rw + Math.floor(sx)) * 4;
+          const o  = (y*rw + x) * 4;
+
+          const g = (hash2(x,y,timeMs) - 0.5) * 6;
+
+          dst[o+0] = clamp255(src[ix+0] + g);
+          dst[o+1] = clamp255(src[ix+1] + g*0.9);
+          dst[o+2] = clamp255(src[ix+2] + g*0.7);
+          dst[o+3] = 255;
+        }
+      }
+
+      octx.putImageData(outImg, 0, 0);
+    }
+
+    // ----------- helpers -----------
+    function hexToRgb(hex){
+      const h = hex.replace("#","");
+      const n = parseInt(h,16);
+      return { r:(n>>16)&255, g:(n>>8)&255, b:n&255 };
+    }
+    function clamp01(v){ return Math.max(0, Math.min(1, v)); }
+    function clamp255(v){ return Math.max(0, Math.min(255, v|0)); }
+
+    function sampleRamp(cols, t){
+      const n = cols.length - 1;
+      const p = t * n;
+      const i = Math.floor(p);
+      const f = p - i;
+      const a = cols[Math.max(0, Math.min(n, i))];
+      const b = cols[Math.max(0, Math.min(n, i+1))];
+      const s = f*f*(3 - 2*f);
+      return {
+        r: Math.round(a.r + (b.r - a.r)*s),
+        g: Math.round(a.g + (b.g - a.g)*s),
+        b: Math.round(a.b + (b.b - a.b)*s)
+      };
+    }
+
+    // value noise
+    function valueNoise(x, y, s){
+      const xi = Math.floor(x);
+      const yi = Math.floor(y);
+      const xf = x - xi;
+      const yf = y - yi;
+
+      const a = hash01(xi,   yi,   s);
+      const b = hash01(xi+1, yi,   s);
+      const c = hash01(xi,   yi+1, s);
+      const d = hash01(xi+1, yi+1, s);
+
+      const u = xf*xf*(3 - 2*xf);
+      const v = yf*yf*(3 - 2*yf);
+
+      const ab = a + (b - a)*u;
+      const cd = c + (d - c)*u;
+      return ab + (cd - ab)*v;
+    }
+
+    function hash01(x, y, s){
+      let n = (x*374761393 + y*668265263) ^ (s*1442695040888963407);
+      n = (n ^ (n >> 13)) * 1274126177;
+      n = (n ^ (n >> 16));
+      return ((n >>> 0) / 4294967295);
+    }
+
+    function hash2(x,y,t){
+      let n = (x*374761393 + y*668265263) ^ (t|0);
+      n = (n ^ (n >> 13)) * 1274126177;
+      n = (n ^ (n >> 16));
+      return (n >>> 0) / 4294967295;
+    }
+
+    // Click to regenerate a new random background (optional)
+    // window.addEventListener("click", () => generateRandomBaseField(), {passive:true});
+  </script>
+</body>
+</html>
